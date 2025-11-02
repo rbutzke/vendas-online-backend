@@ -1,31 +1,94 @@
-import { Injectable } from '@nestjs/common';
-import { User } from './interfaces/user.interface';
-import { CreateUserDto } from './dtos/createUser.dto';
-import { hash } from 'bcrypt';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { PG_POOL } from '../common/pg/pg.constants';
+import { Pool } from 'pg';
+import { User } from './entities/user.entity';
 
 @Injectable()
 export class UserService {
 
-    private users: User[] = [];
-
-    async createUser(createUserDto  : CreateUserDto): Promise<User> {
-
-      const saltOrRounds = 10;
-      const passwordHash = await hash(createUserDto.password, saltOrRounds);
-
-      const user: User = {
-        ...createUserDto,
-        password: passwordHash,
-        id: (this.users.length + 1).toString(),
-      };
-
-      this.users.push(user);
-
-      return user;
+  constructor(@Inject(PG_POOL) private readonly pgPool: Pool) {
+    this.pgPool.connect();
   }
 
-    async getAllUsers(): Promise<User[]> {
-        return this.users;
-    }
+ 
+
+async create(userData: CreateUserDto): Promise<User> { // Utilizar User como tipo de retorno
+    //Extrai as chaves do objeto DTO (colunas)
+    const columns = Object.keys(userData);
+    //Extrai os valores do objeto DTO (valores a serem inseridos)
+    const values = Object.values(userData);
+
+    //Gera os placeholders parametrizados (e.g., "$1, $2, $3")
+    //O driver pg usa $N para prevenir SQL Injection.
+    const placeholders = columns.map((_, index) => `$${index + 1}`).join(', ');
+    
+    //Monta a string SQL dinamicamente
+    const queryText = `
+      INSERT INTO users (${columns.join(', ')})
+      VALUES (${placeholders})
+      RETURNING *;
+    `;
+
+    // Executa a query com os valores parametrizados
+    const res = await this.pgPool.query(queryText, values);
+    
+    // Retorna o primeiro registro inserido, agora tipado como User
+    return res.rows[0] as User; // Usa um type assertion para garantir o tipo retornado
 }
 
+  async findAll() {
+    const result = await this.pgPool.query('SELECT * FROM users');
+    return result.rows;
+  }
+
+  async findOne(id: number) {
+    const query = 'SELECT * FROM users WHERE id = $1';
+    const values = [id];
+    const result = await this.pgPool.query(query, values);
+    return result.rows[0];
+  }
+
+  // Atualiza um usuário existente com base no ID fornecido e nos dados do DTO
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    const columns = Object.keys(updateUserDto);
+    const values = Object.values(updateUserDto);
+
+    if (columns.length === 0) {
+      throw new NotFoundException(`No data provided for update.`);
+    }
+
+    const setClause = columns
+      .map((column, index) => `${column} = $${index + 1}`)
+      .join(', ');
+
+    values.push(id);
+    const idPlaceholder = `$${values.length}`;
+
+    const queryText = `
+      UPDATE users
+      SET ${setClause}
+      WHERE id = ${idPlaceholder}
+      RETURNING *;
+    `;
+
+    const res = await this.pgPool.query(queryText, values);
+    
+    if (res.rows.length === 0) {
+        throw new NotFoundException(`User with ID "${id}" not found.`);
+    }
+
+    return res.rows[0] as User;
+  }
+
+
+  async remove(id: number) {
+    const query = 'DELETE FROM users WHERE id = $1 RETURNING *';
+    const values = [id];
+    const result = await this.pgPool.query(query, values);
+    // Returns the deleted row data
+    return result.rows[0]; 
+
+  }
+}

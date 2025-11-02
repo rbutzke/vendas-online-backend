@@ -1,7 +1,7 @@
 import { Global, Module, OnModuleDestroy, Inject } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Pool } from 'pg'; // Pool para melhor desempenho e escalabilidade
-import { PG_CLIENT } from './pg.constants'; // constante para o token
+import { PG_POOL } from './pg.constants'; // constante para o token
 
 
 @Global()
@@ -10,7 +10,7 @@ import { PG_CLIENT } from './pg.constants'; // constante para o token
   imports: [ConfigModule], 
   providers: [
     {
-      provide: PG_CLIENT,
+      provide: PG_POOL,
       // Injeta ConfigService na useFactory
       useFactory: async (configService: ConfigService): Promise<Pool> => {
         const pool = new Pool({
@@ -35,11 +35,11 @@ import { PG_CLIENT } from './pg.constants'; // constante para o token
       inject: [ConfigService], 
     },
   ],
-  exports: [PG_CLIENT],
+  exports: [PG_POOL],
 })
 export class PgModule implements OnModuleDestroy {
    // Injetando a instância do pool no construtor do módulo
-  constructor(@Inject(PG_CLIENT) private readonly pool: Pool) {}
+  constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   /**
    * Hook de ciclo de vida chamado antes que o módulo seja destruído (e a aplicação encerrada).

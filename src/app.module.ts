@@ -17,4 +17,3 @@ import { PgModule } from './common/pg/pg.module';
   providers: [AppService],
 })
 export class AppModule {}
-   

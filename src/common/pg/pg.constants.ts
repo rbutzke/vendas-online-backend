@@ -1,1 +1,1 @@
-export const PG_CLIENT = 'PG_CLIENT';
+export const PG_POOL = 'PG_POOL';
