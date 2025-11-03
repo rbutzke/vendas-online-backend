@@ -7,7 +7,6 @@ import { AddressModule } from './address/address.module';
 import { StateModule } from './state/state.module';
 import { CityModule } from './city/city.module';
 import { Module} from '@nestjs/common';
-import { CacheModule } from '@nestjs/cache-manager/dist/cache.module';
 import { RedisModule } from './common/redis/redis.module';
 
 @Module({

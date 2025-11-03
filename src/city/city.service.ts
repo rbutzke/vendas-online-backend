@@ -4,19 +4,20 @@ import { UpdateCityDto } from './dto/update-city.dto';
 import { Pool } from 'pg';
 import { PG_POOL } from '../common/pg/pg.constants';
 import { Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import { RedisService } from '../common/redis/redis.service';
+import { ReturnCityDto } from './dto/return-city.dto';
 
 @Injectable()
 export class CityService {
 
 
-  constructor(@Inject(PG_POOL) private readonly pgPool: Pool) {
+  constructor(@Inject(PG_POOL) private readonly pgPool: Pool,
+  @Inject(RedisService) private readonly redisService: RedisService
+) {
     this.pgPool.connect();
   }
-  
-  @Inject(CACHE_MANAGER) private cacheManager: Cache
  
+
 /*
   create(createCityDto: CreateCityDto) {
     return 'This action adds a new city';
@@ -26,26 +27,33 @@ export class CityService {
     return `This action returns all city`;
   }
 */
-  async findOne(state_id: number){
+  async findOne(state_id: number): Promise<ReturnCityDto[]> {
     
     const cacheKey = `user_${state_id}`;
-    // Tentar obter do cache
-    const cachedUser = await this.cacheManager.get(cacheKey);
-
-    if (cachedUser) {
-      console.log('Cache hit for key:', cacheKey);
-      return cachedUser;
-    }
    
+    const cachedCity = await this.redisService.get(cacheKey);
+
+    if (cachedCity) {
+      console.log('Cache hit for key:', cacheKey);
+      if (typeof cachedCity === 'string') {
+        return JSON.parse(cachedCity);
+      }
+      return cachedCity;
+    }
+
     const query = 'SELECT * FROM city WHERE state_id = $1';
     const values = [state_id];
     const result = await this.pgPool.query(query, values);
+    
+    // formata conforme os campos do DTO return retirando configs do DB
+    const resultf = (result.rows).map((CityEntity) => new ReturnCityDto(CityEntity));  
 
-    // Salvar no cache por 5 minutos
-    await this.cacheManager.set(cacheKey, result, 300000);
+    await this.redisService.set(cacheKey, JSON.stringify(resultf), 3600);
+  
+    //return (result.rows).map((CityEntity) => new ReturnCityDto(CityEntity))  
+    return resultf;
+  }
 
-    return result.rows;
-  }   
 
 /*
   update(id: number, updateCityDto: UpdateCityDto) {

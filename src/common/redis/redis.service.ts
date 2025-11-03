@@ -1,137 +1,51 @@
-// src/redis/redis.service.ts
-import { Injectable, Inject } from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import type { Cache } from 'cache-manager';
+import { Inject, Injectable } from '@nestjs/common';
+import Redis from 'ioredis';
 
 @Injectable()
 export class RedisService {
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(
+    @Inject('REDIS_CLIENT') private readonly redisClient: Redis,
+  ) {}
 
-  /**
-   * Obter valor do cache
-   */
-  async get<T>(key: string): Promise<T | null> {
-    try {
-      return (await this.cache.get<T>(key)) ?? null;
-    } catch (error) {
-      console.error('Erro ao obter do Redis:', error);
-      return null;
+  // Método para setar um valor
+  async set(key: string, value: string, expireInSeconds?: number): Promise<void> {
+    if (expireInSeconds) {
+      await this.redisClient.setex(key, expireInSeconds, value);
+    } else {
+      await this.redisClient.set(key, value);
     }
   }
 
-  /**
-   * Definir valor no cache
-   */
-  async set(key: string, value: any, ttl?: number): Promise<void> {
-    try {
-      await this.cache.set(key, value, ttl);
-    } catch (error) {
-      console.error('Erro ao definir no Redis:', error);
-    }
+  // Método para obter um valor
+  async get(key: string): Promise<string | null> {
+    return await this.redisClient.get(key);
   }
 
-  /**
-   * Deletar chave do cache
-   */
-  async del(key: string): Promise<void> {
-    try {
-      await this.cache.del(key);
-    } catch (error) {
-      console.error('Erro ao deletar do Redis:', error);
-    }
+  // Método para deletar uma chave
+  async del(key: string): Promise<number> {
+    return await this.redisClient.del(key);
   }
 
-  /**
-   * Resetar todo o cache
-   */
-  async clearAll(): Promise<void> {
-    try {
-      await this.cache.clear();
-    } catch (error) {
-      console.error('Erro ao resetar Redis:', error);
-    }
+  // Método para verificar se uma chave existe
+  async exists(key: string): Promise<number> {
+    return await this.redisClient.exists(key);
   }
 
-  /**
-   * Obter múltiplas chaves
-   */
-  async mget(keys: string[]): Promise<any[]> {
-    try {
-     const promises = keys.map(key => this.get(key));
-     return await Promise.all(promises);
-   } catch (error) {
-     console.error('Erro ao obter múltiplas chaves:', error);
-     return [];
-   }
+  // Método para definir tempo de expiração
+  async expire(key: string, seconds: number): Promise<number> {
+    return await this.redisClient.expire(key, seconds);
   }
 
-
-  async mset(data: { key: string; value: any; ttl?: number }[]): Promise<void> {
-    try {
-      for (const item of data) {
-        await this.set(item.key, item.value, item.ttl);
-      }
-    } catch (error) {
-      console.error('Erro ao definir múltiplas chaves:', error);
-    }
+  // Método para operações com hash
+  async hset(key: string, field: string, value: string): Promise<number> {
+    return await this.redisClient.hset(key, field, value);
   }
 
-  /**
-   * Verificar se chave existe
-   */
-  async exists(key: string): Promise<boolean> {
-    try {
-      const value = await this.get(key);
-      return value !== null && value !== undefined;
-    } catch (error) {
-      console.error('Erro ao verificar existência:', error);
-      return false;
-    }
+  async hget(key: string, field: string): Promise<string | null> {
+    return await this.redisClient.hget(key, field);
   }
 
-  /**
-   * Incrementar valor
-   */
-  async incr(key: string, value = 1): Promise<number> {
-    try {
-      const current = await this.get<number>(key);
-      const newValue = (current || 0) + value;
-      await this.set(key, newValue);
-      return newValue;
-    } catch (error) {
-      console.error('Erro ao incrementar:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Decrementar valor
-   */
-  async decr(key: string, value = 1): Promise<number> {
-    try {
-      const current = await this.get<number>(key);
-      const newValue = (current || 0) - value;
-      await this.set(key, newValue);
-      return newValue;
-    } catch (error) {
-      console.error('Erro ao decrementar:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Obter tempo de expiração restante
-   */
-  async getTtl(key: string): Promise<number> {
-    try {
-      // Esta é uma implementação simplificada
-      // Em produção, você pode querer usar o cliente Redis diretamente
-      const value = await this.get(key);
-      if (value === null) return -2;
-      return -1; // Retorna -1 se não houver TTL específico
-    } catch (error) {
-      console.error('Erro ao obter TTL:', error);
-      return -2;
-    }
+  async hgetall(key: string): Promise<Record<string, string>> {
+    return await this.redisClient.hgetall(key);
   }
 }

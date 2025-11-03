@@ -12,13 +12,15 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule ,{httpsOptions});
   
+  // Habilitar CORS
+  app.enableCors();
+
   // Habilita o uso de pipes de validação globalmente
   app.useGlobalPipes(new ValidationPipe());
 
   app.enableShutdownHooks(); // Habilita os hooks de desligamento
   
   await app.listen(process.env.PORT ?? 7777);
-
 
 }
 bootstrap();
